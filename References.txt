@@ -1,0 +1,2 @@
+https://www.superdatascience.com/opencv-face-detection/
+https://www.superdatascience.com/opencv-face-recognition/
