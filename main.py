@@ -3,22 +3,32 @@ import cv2 as cv
 import os
 import datetime
 # face_cascade = cv.CascadeClassifier('lbpcascade_frontalface_improved.xml')
-face_recognizer = cv.createLBPHFaceRecognizer()
+face_recognizer = cv.face.LBPHFaceRecognizer_create()
 face_cascade = cv.CascadeClassifier('haarcascade_frontalface_default.xml')
 count = 0
 recognitionThreshold = 80
-generateTraingDate = False
+generateTraingDate = "n0732961"
 showOutput = True
 
-def detectFace(classifier, img, scaleFactor=1.3):
-	rect = classifier.detectMultiScale(img, scaleFactor, 5)
-	return rect
-
+# Drawing Functions 
 def drawFaces(img,faces):
 	for (x,y,w,h) in faces:
 		cv.rectangle(img,(x,y),(x+w,y+h),(255,0,0),2)
 	cv.imshow('frame', img)
 
+def draw_rectangle(img, rect):
+	(x, y, w, h) = rect
+	cv.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 2)
+ 
+
+def draw_text(img, text, x, y):
+	cv.putText(img, text, (x, y), cv.FONT_HERSHEY_PLAIN, 1, [0, 255, 0], 2)
+
+# Dection
+
+def detectFace(classifier, img, scaleFactor=1.3):
+	rect = classifier.detectMultiScale(img, scaleFactor, 5)
+	return rect
 
 def getFaces(img,faces):
 	roi_color = []
@@ -26,12 +36,14 @@ def getFaces(img,faces):
 		roi_color.append(img[y:y+h, x:x+w])
 	return roi_color
 
+# Io 
 def writeFaces(img,faces,folder):
 	faces = getFaces(img,faces)
 	for i in range(len(faces)):
 		cv.imwrite('%s.jpg'%(folder) ,faces[i])
 
 
+# Rocognision
 def CreateTrainingDataFaces(img,faces,folder):
 	faces = getFaces(img,faces)
 	labels = []
@@ -60,7 +72,7 @@ def getTraingingData(folderPath):
 
 def predict(img,face,rect):
 	imgCopy = img.copy()
-	label = face_recognizer.predict(face)	
+	label = face_recognizer.predict(face)
 
 	if label[1] < recognitionThreshold:
 		label = "N0" + str(label[0])
@@ -79,16 +91,6 @@ def predict(img,face,rect):
 
 	return imgCopy
 
-	
-
-def draw_rectangle(img, rect):
-	(x, y, w, h) = rect
-	cv.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 2)
- 
-
-def draw_text(img, text, x, y):
-	cv.putText(img, text, (x, y), cv.FONT_HERSHEY_PLAIN, 1, [0, 255, 0], 2)
-
 def train():
 	print "Preparing Data..."
 	faces, labels = getTraingingData("TrainingData")
@@ -98,10 +100,14 @@ def train():
 	face_recognizer.save('faceData.yml')
 	print "Training Completed"
 
+
+# Start 
 try:
-	face_recognizer.load('faceData.yml')
+	face_recognizer.read('faceData.yml')
 except:
+	print "Failed to load face data"
 	train()
+
 cap = cv.VideoCapture(0)
 
 while(True):
