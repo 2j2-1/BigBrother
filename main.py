@@ -7,50 +7,60 @@ face_recognizer = cv.face.LBPHFaceRecognizer_create()
 face_cascade = cv.CascadeClassifier('haarcascade_frontalface_default.xml')
 count = 0
 recognitionThreshold = 80
-generateTraingDate = "n0732961"
+generateTraingData = False
+
+TrainingDataFolder = "TrainingData"
+TraningDataSaveLocation = "TrainingData/%s"%(generateTraingData)
+
+
 showOutput = True
 
+# Utility
+
+def existsOrCreate(fileLocation):
+	if not os.path.isdir(fileLocation):
+		os.makedirs(fileLocation)
+
 # Drawing Functions 
-def drawFaces(img,faces):
-	for (x,y,w,h) in faces:
-		cv.rectangle(img,(x,y),(x+w,y+h),(255,0,0),2)
-	cv.imshow('frame', img)
 
-def draw_rectangle(img, rect):
+def draw_face(img, rect,text="",value=100):
 	(x, y, w, h) = rect
-	cv.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 2)
- 
+	cv.rectangle(img, (x, y), (x+w, y+h), (255, 0, 0), 2)
+	if text != "":
+		cv.putText(img, text+": "+str(100-value)+"%", (x, y-5), cv.FONT_HERSHEY_PLAIN, 1, [0, 255, 0], 2)
 
-def draw_text(img, text, x, y):
-	cv.putText(img, text, (x, y), cv.FONT_HERSHEY_PLAIN, 1, [0, 255, 0], 2)
-
-# Dection
+# Detection
 
 def detectFace(classifier, img, scaleFactor=1.3):
 	rect = classifier.detectMultiScale(img, scaleFactor, 5)
 	return rect
 
-def getFaces(img,faces):
+def getFaces(img,rects):
 	roi_color = []
-	for (x,y,w,h) in faces:
+	for (x,y,w,h) in rects:
 		roi_color.append(img[y:y+h, x:x+w])
 	return roi_color
 
 # Io 
-def writeFaces(img,faces,folder):
-	faces = getFaces(img,faces)
+
+def writeFaces(folder,faces=[],img=None):
+	existsOrCreate(folder)
+
+	if faces == []:
+		faces = getFaces(img,faces)
+
 	for i in range(len(faces)):
-		cv.imwrite('%s.jpg'%(folder) ,faces[i])
+		cv.imwrite('%s/%s.jpg'%(folder,str(datetime.datetime.now())) ,faces[i])
 
 
-# Rocognision
-def CreateTrainingDataFaces(img,faces,folder):
-	faces = getFaces(img,faces)
-	labels = []
-	for i in range(len(faces)):
-		cv.imwrite('TrainingData/%s/%s.jpg'%(folder,str(datetime.datetime.now())) ,faces[i])
-		labels.append(int(generateTraingDate.replace("n0","")))
-	print "Adding %d new faces to model as %s" %(len(faces),generateTraingDate)
+# Recognision
+
+def CreateTrainingDataFaces(img,rects,folder):
+	faces = getFaces(img,rects)
+	label = int(generateTraingData.replace("n0",""))
+	labels = [label] * len(faces)
+	writeFaces(TraningDataSaveLocation,faces)
+	print "Adding %d new faces to model as %s" %(len(faces),generateTraingData)
 	face_recognizer.update(faces,np.array(labels))
 	face_recognizer.save("faceData.yml")
 
@@ -72,39 +82,41 @@ def getTraingingData(folderPath):
 
 def predict(img,face,rect):
 	imgCopy = img.copy()
-	label = face_recognizer.predict(face)
+	label, value = face_recognizer.predict(face)
 
-	if label[1] < recognitionThreshold:
-		label = "N0" + str(label[0])
+	if value < recognitionThreshold:
+		label = "N0" + str(label)
 	else:
 		label = "Unrecognised"
+		value = 100
 
 	if showOutput:
-		draw_rectangle(imgCopy, rect)
-		draw_text(imgCopy, label, rect[0], rect[1]-5)
+		draw_face(imgCopy, rect, label, value)
 	else:
 		print label
-	if generateTraingDate and label.lower() != generateTraingDate:
-		CreateTrainingDataFaces(gray,[rect],generateTraingDate)
+
+	if generateTraingData and label.lower() != generateTraingData:
+		CreateTrainingDataFaces(gray,[rect],generateTraingData)
 	elif label == "Unrecognised":
-		writeFaces(gray,[rect],"Unrecongized/%s"%str(datetime.datetime.now()))
+		writeFaces("Unrecongized/",[rect],gray)
 
 	return imgCopy
 
 def train():
 	print "Preparing Data..."
-	faces, labels = getTraingingData("TrainingData")
+	faces, labels = getTraingingData(TrainingDataFolder)
 	print "Completed Preparation"
 	print "Total faces:", len(faces)
+
 	face_recognizer.train(faces,np.array(labels))
 	face_recognizer.save('faceData.yml')
 	print "Training Completed"
 
 
 # Start 
-try:
+if os.path.exists('faceData.yml'):
 	face_recognizer.read('faceData.yml')
-except:
+else:
 	print "Failed to load face data"
 	train()
 
@@ -120,7 +132,8 @@ while(True):
 		frame = predict(frame,facesImg[face],faces[face])
 
 	if showOutput:
-		drawFaces(frame,faces)
+		cv.imshow('frame', frame)
+
 	if cv.waitKey(1) & 0xFF == ord('q'):
 		break
 
