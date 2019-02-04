@@ -17,7 +17,7 @@ class Recognision():
 	def trainModel(self):
 		print "Preparing Data..."
 
-		faces, labels = self.getTraingingData(TrainingDataFolder)
+		faces, labels = self.getTraingingData(self.trainingDataLocation)
 
 		print "Completed Preparation"
 		print "Total faces:", len(faces)
@@ -43,33 +43,38 @@ class Recognision():
 				labels.append(label)
 		return faces, labels
 
-	def CreateTrainingDataFaces(self,faceImg,folder,userName):
+	def CreateTrainingDataFaces(self,faceImg,userName):
 		label = int(userName.replace("n0",""))
-		self.writeFaces(TraningDataSaveLocation,faceImg)
-		print "Adding new face to model as %s" %(generateTraingData)
-		self.face_recognizer.update(faceImg,np.array(label))
+
+		self.writeFaces(self.trainingDataLocation,userName,faceImg)
+		print "Adding new face to model as %s" %(userName)
+		self.face_recognizer.update([faceImg],np.array([label]))
 		self.face_recognizer.save("faceData.yml")
 
 	def predict(self,face):
 		return self.face_recognizer.predict(face)
 
 	def writeFaces(self,folder,userName,face,img=None):
-		existsOrCreate('%s/%s'%(folder,userName))
-		cv.imwrite('%s/%s/%s.jpg'%(folder,userName,str(datetime.datetime.now())) ,face)
+		if userName != "":
+			folder = '%s/%s'%(folder,userName)
+		existsOrCreate('%s'%(folder))
+		cv.imwrite('%s/%s.jpg'%(folder,str(datetime.datetime.now())) ,face)
 
 
 class Camera():
 
-	def __init__(self, videoCapture, detector, recognisor, userToAddToModel=None, showOutput = False):
+	def __init__(self, videoCapture, detector, recognisor,cameraName, userToAddToModel=None, showOutput = False):
 		self.videoCapture = videoCapture
 		self.showOutput = showOutput
 		self.detector = detector
 		self.recognisor = recognisor
 		self.userToAddToModel = userToAddToModel
-		self.recognitionThreshold = 80
+		self.recognitionThreshold = 30
+		self.cameraName = cameraName
+		
 
 	def run(self):
-		ret, self.frame = self.videoCapture.read()
+		self.frame = self.videoCapture.read()[1]
 		self.drawing = self.frame.copy()
 		self.gray = cv.cvtColor(self.frame, cv.COLOR_BGR2GRAY)
 		self.faces = self.detector.detectFace(self.gray)
@@ -87,20 +92,24 @@ class Camera():
 			label = "Unrecognised"
 			value = 100
 
-		self.draw_face(faceRect,label,value)
+		if self.showOutput:
+			self.draw_face(faceRect,label,value)
+		else:
+			print label,value,self.cameraName
 
-		if self.userToAddToModel and label != self.userToAddToModel:
-			CreateTrainingDataFaces(faceImg,self.userToAddToModel)
+		if self.userToAddToModel and label.lower() != self.userToAddToModel:
+			self.recognisor.CreateTrainingDataFaces(faceImg,self.userToAddToModel)
 		elif label == "Unrecognised":
-			recognisor.writeFaces("Unrecongized/",[rect],self.gray)
+			self.recognisor.writeFaces("Unrecongized","",faceImg)
 
 	def draw_face(self,rect,text,value):
 		x, y, w, h = rect
 		cv.rectangle(self.drawing, (x, y), (x+w, y+h), (255, 0, 0), 2)
-		cv.putText(self.drawing, text+": "+str(int((value/self.recognitionThreshold)*100))+"%", (x, y-5), cv.FONT_HERSHEY_PLAIN, 1, [0, 255, 0], 2)
+		cv.putText(self.drawing, text+": "+str(int(100-(value)))+"%", (x, y-5), cv.FONT_HERSHEY_PLAIN, 1, [0, 255, 0], 2)
 
-	def draw(self):
-		cv.imshow("Frame",self.drawing)
+	def output(self):
+		if self.showOutput:
+			cv.imshow(self.cameraName,self.drawing)
 
 class Detection():
 
@@ -125,12 +134,12 @@ cam1 = cv.VideoCapture(0)
 
 detect = Detection()
 recognision = Recognision()
-cameras = [Camera(cam1,detect,recognision)]
+cameras = [Camera(cam1,detect,recognision,"Camera1","n0732961",showOutput=True)]
 
 while True:
 	for i in cameras:
 		i.run()
-		i.draw()
+		i.output()
 	if cv.waitKey(1) & 0xFF == ord('q'):
 			break
 
