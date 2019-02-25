@@ -61,7 +61,7 @@ class Recognision():
 		cv.imwrite('%s/%s.jpg'%(folder,str(datetime.datetime.now())) ,face)
 
 
-class Camera():
+class Stream():
 
 	def __init__(self, videoCapture, detector, recognisor,cameraName, userToAddToModel=None, showOutput = False):
 		self.videoCapture = videoCapture
@@ -69,7 +69,7 @@ class Camera():
 		self.detector = detector
 		self.recognisor = recognisor
 		self.userToAddToModel = userToAddToModel
-		self.recognitionThreshold = 30
+		self.recognitionThreshold = 80
 		self.cameraName = cameraName
 		
 
@@ -134,7 +134,7 @@ cam1 = cv.VideoCapture(0)
 
 detect = Detection()
 recognision = Recognision()
-cameras = [Camera(cam1,detect,recognision,"Camera1","n0732961",showOutput=True)]
+cameras = [Stream(cam1,detect,recognision,"Camera1",userToAddToModel=None,showOutput=True)]
 
 while True:
 	for i in cameras:
