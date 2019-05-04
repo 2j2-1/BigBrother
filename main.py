@@ -2,6 +2,11 @@ import numpy as np
 import cv2 as cv
 import os
 import datetime
+import json
+import requests
+url = "https://magnus.cjax.uk/reports/student/"
+headers = {'Content-Type': 'application/json','Token': 'fd4917ce3f1e9bb8be8014f26b9fe17e7aaedb0b', 'Address': '20:16:B9:6C:E8:55'}
+
 
 class Recognision():
 
@@ -63,18 +68,16 @@ class Recognision():
 
 class Stream():
 
-	def __init__(self, videoCapture, detector, recognisor,cameraName, userToAddToModel=None, showOutput = False):
-		self.videoCapture = videoCapture
-		self.showOutput = showOutput
+	def __init__(self, detector, recognisor):
 		self.detector = detector
 		self.recognisor = recognisor
-		self.userToAddToModel = userToAddToModel
-		self.recognitionThreshold = 80
-		self.cameraName = cameraName
+		self.recognitionThreshold = 60
+		self.user = ""
 		
 
-	def run(self):
-		self.frame = self.videoCapture.read()[1]
+	def run(self,frame,user = ""):
+		self.user = user
+		self.frame = frame
 		self.drawing = self.frame.copy()
 		self.gray = cv.cvtColor(self.frame, cv.COLOR_BGR2GRAY)
 		self.faces = self.detector.detectFace(self.gray)
@@ -85,31 +88,34 @@ class Stream():
 
 	def predict(self,faceImg,faceRect):
 		label, value = self.recognisor.predict(faceImg)
+		if self.user == "":
+			self.recognitionThreshold = 80
+		else:
+			self.recognitionThreshold = 60
 
 		if value < self.recognitionThreshold:
 			label = "N0" + str(label)
 		else:
 			label = "Unrecognised"
 			value = 100
+		if label!="Unrecognised" and self.user == "":
+			cv.imwrite('Monitored/%s-%s.jpg'%(label,str(datetime.datetime.now())) ,faceImg)
+			data = {"camera_id":"1","identifier":label,"notes":value,}
+			r = requests.post(url+"success/", data=json.dumps(data), headers=headers)
+			print r
 
-		if self.showOutput:
-			self.draw_face(faceRect,label,value)
+		elif self.user != "" and self.user != label.lower():
+			self.recognisor.CreateTrainingDataFaces(faceImg,self.user)
 		else:
-			print label,value,self.cameraName
-
-		if self.userToAddToModel and label.lower() != self.userToAddToModel:
-			self.recognisor.CreateTrainingDataFaces(faceImg,self.userToAddToModel)
-		elif label == "Unrecognised":
 			self.recognisor.writeFaces("Unrecongized","",faceImg)
+			data = {"camera_id":"1","identifier":label,"notes":value,}
+			r = requests.post(url+"unsuccessful/", data=json.dumps(data), headers=headers)
+			print r
 
 	def draw_face(self,rect,text,value):
 		x, y, w, h = rect
 		cv.rectangle(self.drawing, (x, y), (x+w, y+h), (255, 0, 0), 2)
 		cv.putText(self.drawing, text+": "+str(int(100-(value)))+"%", (x, y-5), cv.FONT_HERSHEY_PLAIN, 1, [0, 255, 0], 2)
-
-	def output(self):
-		if self.showOutput:
-			cv.imshow(self.cameraName,self.drawing)
 
 class Detection():
 
@@ -130,19 +136,29 @@ def existsOrCreate(fileLocation):
 	if not os.path.isdir(fileLocation):
 		os.makedirs(fileLocation)
 
-cam1 = cv.VideoCapture(0)
-
 detect = Detection()
 recognision = Recognision()
-cameras = [Stream(cam1,detect,recognision,"Camera1",userToAddToModel=None,showOutput=True)]
+stream = Stream(detect,recognision)
 
+folders = ["Monitor","toAdd"]
 while True:
-	for i in cameras:
-		i.run()
-		i.output()
 	if cv.waitKey(1) & 0xFF == ord('q'):
-			break
-
-cam1.release()
+		break
+	for i in folders:
+		dirs = os.listdir(i)
+		if len(dirs)>5:
+			for imageName in dirs:
+				imagePath = i + "/" + imageName
+				face = cv.imread(imagePath)
+				try:
+					if i == "toAdd":
+						stream.run(face,imageName[:8])
+					else:
+						stream.run(face)
+					os.remove(imagePath)
+				except:
+					break
+				if cv.waitKey(1) & 0xFF == ord('q'):
+						break
 cv.destroyAllWindows()
 
