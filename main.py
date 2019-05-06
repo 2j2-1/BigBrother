@@ -4,7 +4,7 @@ import os
 import datetime
 import json
 import requests
-url = "https://magnus.cjax.uk/reports/student/"
+url = "https://magnus.cjax.uk/"
 headers = {'Content-Type': 'application/json','Token': 'fd4917ce3f1e9bb8be8014f26b9fe17e7aaedb0b', 'Address': '20:16:B9:6C:E8:55'}
 
 
@@ -29,6 +29,7 @@ class Recognision():
 
 		self.face_recognizer.train(faces,np.array(labels))
 		self.face_recognizer.save('faceData.yml')
+		self.face_recognizer.read('faceData.yml')
 
 		print "Training Completed"
 
@@ -89,28 +90,31 @@ class Stream():
 	def predict(self,faceImg,faceRect):
 		label, value = self.recognisor.predict(faceImg)
 		if self.user == "":
-			self.recognitionThreshold = 80
+			self.recognitionThreshold = 50
 		else:
-			self.recognitionThreshold = 60
+			self.recognitionThreshold = 40
 
 		if value < self.recognitionThreshold:
 			label = "N0" + str(label)
 		else:
 			label = "Unrecognised"
 			value = 100
+		print label,self.user
 		if label!="Unrecognised" and self.user == "":
 			cv.imwrite('Monitored/%s-%s.jpg'%(label,str(datetime.datetime.now())) ,faceImg)
-			data = {"camera_id":"1","identifier":label,"notes":value,}
-			r = requests.post(url+"success/", data=json.dumps(data), headers=headers)
-			print r
+			data = {"camera_id":"1","identifier":label,"notes":value}
+			print data
+			r = requests.post(url+"reports/student/success/", data=json.dumps(data), headers=headers)
+			print "Success"#,r
 
 		elif self.user != "" and self.user != label.lower():
 			self.recognisor.CreateTrainingDataFaces(faceImg,self.user)
-		else:
+		elif self.user == "":
 			self.recognisor.writeFaces("Unrecongized","",faceImg)
-			data = {"camera_id":"1","identifier":label,"notes":value,}
-			r = requests.post(url+"unsuccessful/", data=json.dumps(data), headers=headers)
-			print r
+			data = {"camera_id":"1"}
+			print data
+			r = requests.post(url+"alerts/", data=json.dumps(data), headers=headers)
+			print "alert"#,r
 
 	def draw_face(self,rect,text,value):
 		x, y, w, h = rect
@@ -146,7 +150,7 @@ while True:
 		break
 	for i in folders:
 		dirs = os.listdir(i)
-		if len(dirs)>5:
+		if len(dirs)>10:
 			for imageName in dirs:
 				imagePath = i + "/" + imageName
 				face = cv.imread(imagePath)
